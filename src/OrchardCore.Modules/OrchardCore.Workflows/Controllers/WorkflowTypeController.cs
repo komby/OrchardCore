@@ -279,6 +279,12 @@ namespace OrchardCore.Workflows.Controllers
             var newLocalId = string.IsNullOrWhiteSpace(localId) ? Guid.NewGuid().ToString() : localId;
             var availableActivities = _activityLibrary.ListActivities();
             var workflowType = await _session.GetAsync<WorkflowType>(id);
+
+            if (workflowType == null)
+            {
+                return NotFound();
+            }
+
             var workflow = _workflowManager.NewWorkflow(workflowType);
             var workflowContext = await _workflowManager.CreateWorkflowExecutionContextAsync(workflowType, workflow);
             var activityContexts = await Task.WhenAll(workflowType.Activities.Select(async x => await _workflowManager.CreateActivityExecutionContextAsync(x, x.Properties)));
@@ -288,8 +294,18 @@ namespace OrchardCore.Workflows.Controllers
 
             await Task.WhenAll(activityThumbnailDisplayTasks.Concat(activityDesignDisplayTasks));
 
-            var activityThumbnailShapes = activityThumbnailDisplayTasks.Select(x => x.Result).ToList();
-            var activityDesignShapes = activityDesignDisplayTasks.Select(x => x.Result).ToList();
+            var activityThumbnailShapes = new List<dynamic>();
+            foreach (var thumbnailTask in activityThumbnailDisplayTasks)
+            {
+                activityThumbnailShapes.Add(await thumbnailTask);
+            }
+
+            var activityDesignShapes = new List<dynamic>();
+            foreach (var designDisplayTask in activityDesignDisplayTasks)
+            {
+                activityDesignShapes.Add(await designDisplayTask);
+            }
+
             var activitiesDataQuery = activityContexts.Select(x => new
             {
                 Id = x.ActivityRecord.ActivityId,
